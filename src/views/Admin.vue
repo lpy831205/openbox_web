@@ -566,30 +566,233 @@ onMounted(async () => {
 
 <style scoped>
 .admin-container {
-  padding: 20px;
+  padding: 25px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  position: relative;
+}
+
+.admin-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="50" cy="50" r="1" fill="%23ffffff" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>') repeat;
+  pointer-events: none;
+}
+
+.admin-tabs {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  padding: 30px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  position: relative;
+  z-index: 1;
 }
 
 .admin-tabs :deep(.el-tabs__content) {
-  padding: 20px 0;
+  padding: 25px 0;
+}
+
+:deep(.el-tabs__header) {
+  margin-bottom: 25px;
+}
+
+:deep(.el-tabs__item) {
+  font-size: 16px;
+  font-weight: 600;
+  padding: 0 25px;
+  border-radius: 10px 10px 0 0;
+  transition: all 0.3s ease;
+}
+
+:deep(.el-tabs__item:hover) {
+  color: #667eea;
+}
+
+:deep(.el-tabs__item.is-active) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+}
+
+:deep(.el-tabs__active-bar) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  height: 3px;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding-bottom: 15px;
+  border-bottom: 2px solid rgba(102, 126, 234, 0.1);
+}
+
+.card-header span {
+  font-size: 20px;
+  font-weight: 700;
+  color: #303133;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+:deep(.el-card) {
+  border-radius: 16px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+:deep(.el-card__header) {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 16px 16px 0 0;
+}
+
+:deep(.el-table) {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+:deep(.el-table th) {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  color: #495057;
+  font-weight: 600;
+  border-bottom: 2px solid #dee2e6;
+}
+
+:deep(.el-table td) {
+  border-bottom: 1px solid #f1f3f4;
+}
+
+:deep(.el-table tr:hover > td) {
+  background-color: rgba(102, 126, 234, 0.05) !important;
+}
+
+:deep(.el-button) {
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+:deep(.el-button--primary) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+}
+
+:deep(.el-button--primary:hover) {
+  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+:deep(.el-button--danger:hover) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(245, 101, 101, 0.4);
+}
+
+:deep(.el-input__wrapper) {
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+:deep(.el-input__wrapper:hover) {
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+:deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
 }
 
 .pagination {
-  margin-top: 20px;
+  margin-top: 25px;
   display: flex;
   justify-content: flex-end;
 }
 
 .monitor-card {
-  margin-bottom: 20px;
+  margin-bottom: 25px;
+  transition: all 0.3s ease;
+}
+
+.monitor-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
 }
 
 :deep(.el-descriptions) {
-  padding: 20px;
+  padding: 25px;
+}
+
+:deep(.el-progress-bar__outer) {
+  border-radius: 10px;
+}
+
+:deep(.el-progress-bar__inner) {
+  border-radius: 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .admin-container {
+    padding: 20px 15px;
+  }
+  
+  .admin-tabs {
+    padding: 20px 15px;
+    border-radius: 15px;
+  }
+  
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+  
+  :deep(.el-tabs__item) {
+    padding: 0 15px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-container {
+    padding: 15px 10px;
+  }
+  
+  .admin-tabs {
+    padding: 15px 10px;
+    border-radius: 12px;
+  }
+}
+
+/* 动画效果 */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.admin-tabs {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.monitor-card {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.monitor-card:nth-child(2) {
+  animation-delay: 0.1s;
 }
 </style>

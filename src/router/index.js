@@ -38,6 +38,12 @@ const routes = [
         path: 'admin',
         name: 'Admin',
         component: () => import('../views/Admin.vue')
+      },
+      {
+        path: 'superadmin',
+        name: 'SuperAdmin',
+        component: () => import('../views/SuperAdmin.vue'),
+        meta: { requiresSuperAdmin: true }
       }
     ]
   }
