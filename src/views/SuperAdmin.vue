@@ -591,8 +591,20 @@ onMounted(async () => {
 }
 
 :deep(.el-tabs__item.is-active) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
+  color: #ffffff; /* 白色文字以适应渐变背景 */
+  font-weight: 700;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); /* 图片中的渐变背景 */
+  border-radius: 8px; /* 圆角 */
+
+  /* 添加 flex 布局以垂直居中文本 */
+  display: inline-flex;
+  align-items: center;   /* 垂直居中 */
+  justify-content: center; /* 水平居中 */
+  /* 如果el-tabs__item有固定的height，这通常足够了 */
+  /* 如果需要，可以取消注释并调整padding或line-height */
+  /* padding-top: 8px; */
+  /* padding-bottom: 8px; */
+  /* line-height: normal; */
 }
 
 .superadmin-tabs :deep(.el-tabs__content) {
