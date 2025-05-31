@@ -7,8 +7,13 @@ let authStore = null
 
 // 创建axios实例
 const service = axios.create({
-  baseURL: 'http://192.168.110.38:5000',
-  timeout: 15000
+  // 使用相对路径，避免硬编码IP地址
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/',
+  timeout: 15000,
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest'
+  }
 })
 
 // 获取authStore的函数，避免循环依赖
@@ -20,6 +25,18 @@ const getAuthStore = async () => {
     authStore = useAuthStore()
   }
   return authStore
+}
+
+// 获取客户端IP（使用ips.im API获取真实公网IP）
+const getClientIP = async () => {
+  try {
+    // 使用ips.im API获取真实公网IP
+    const response = await axios.get('https://ips.im/api/json')
+    return response.data.ip
+  } catch (error) {
+    console.error('获取公网IP失败:', error)
+    return '127.0.0.1' // 失败时返回本地IP
+  }
 }
 
 // 请求拦截器
@@ -40,7 +57,6 @@ service.interceptors.request.use(
           return Promise.reject(new Error('获取服务器公钥失败'))
         }
       } catch (error) {
-        console.error('获取公钥失败:', error)
         return Promise.reject(new Error('获取服务器公钥失败'))
       }
     }
@@ -78,8 +94,10 @@ service.interceptors.request.use(
     // 生成签名 - 对于GET请求，将查询参数转换为字符串并加入签名
     let requestDataForSig = requestData
     if (config.method.toUpperCase() === 'GET' && config.params) {
-      const sortedParams = Object.entries(config.params).sort()
+      // 按照后端逻辑，对GET请求的参数进行排序并拼接
+      const sortedParams = Object.entries(config.params).sort((a, b) => a[0].localeCompare(b[0]))
       requestDataForSig = sortedParams.map(([k, v]) => `${k}=${v}`).join('&')
+      console.log('GET请求参数字符串:', requestDataForSig)
     }
     
     const signature = cryptoService.generateSignature(
@@ -91,12 +109,22 @@ service.interceptors.request.use(
       timestamp
     )
 
+    console.log('签名参数:', {
+      path: config.url,
+      method: config.method.toUpperCase(),
+      requestData: requestDataForSig,
+      aesKey: aesKey.toString(CryptoJS.enc.Base64),
+      nonce: nonce,
+      timestamp: timestamp,
+      signature: signature
+    })
+
     // 设置安全头 - 无论是GET还是其他请求都需要
     config.headers['X-Encrypted-Key'] = encryptedKey
     config.headers['X-Signature'] = signature
     config.headers['X-Nonce'] = nonce
     config.headers['X-Timestamp'] = timestamp
-    config.headers['X-Client-IP'] = '127.0.0.1' // 本地开发测试用
+    config.headers['X-Client-IP'] = await getClientIP()
 
     // 设置认证头
     if (token) {
@@ -106,14 +134,12 @@ service.interceptors.request.use(
     return config
   },
   (error) => {
-    console.error('请求错误:', error)
     return Promise.reject(error)
   }
 )
 
 // 响应拦截器
 service.interceptors.response.use(
-  
   async (response) => {
     // 如果是公钥请求，直接返回原始数据，不需要解密
     if (response.config.url === '/api/auth/public-key') {
@@ -122,7 +148,6 @@ service.interceptors.response.use(
 
     // 如果响应包含加密数据，进行解密
     if (response.data && response.data.data) {
-      
       try {
         const auth = await getAuthStore()
         const { cryptoService } = auth
@@ -146,7 +171,6 @@ service.interceptors.response.use(
         // 返回解密后的数据，而不是再次解密
         return decryptedData
       } catch (error) {
-        console.error('响应解密失败:', error)
         throw new Error('响应数据解密失败')
       }
     }
@@ -176,25 +200,20 @@ service.interceptors.response.use(
             // 如果不是token过期或刷新失败，则登出
             auth.logout()
           } catch (refreshError) {
-            console.error('刷新token失败:', refreshError)
             // 刷新失败，清除token并跳转到登录页
             const auth = await getAuthStore()
             auth.logout()
           }
           break
         case 403:
-          console.error('没有权限访问该资源')
+          // 权限错误处理
           break
         case 500:
-          console.error('服务器错误')
+          // 服务器错误处理
           break
         default:
-          console.error(`未知错误: ${error.response.status}`)
+          // 其他错误处理
       }
-    } else if (error.request) {
-      console.error('未收到响应')
-    } else {
-      console.error('请求配置错误'+error)
     }
 
     return Promise.reject(error)

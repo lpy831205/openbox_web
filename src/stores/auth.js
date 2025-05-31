@@ -14,8 +14,8 @@ export const useAuthStore = defineStore('auth', () => {
   // 从localStorage获取公钥，确保页面刷新后仍能使用
   const publicKey = ref(localStorage.getItem('publicKey') || '')
   
-  // 创建全局唯一的JSEncrypt实例
-  const encryptor = new JSEncrypt()
+  // 创建全局唯一的JSEncrypt实例，设置密钥大小为3072位
+  const encryptor = new JSEncrypt({ default_key_size: 3072 })
   // 创建全局唯一的CryptoService实例
   const cryptoService = new CryptoService(encryptor)
   
@@ -25,13 +25,34 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const isAuthenticated = computed(() => !!token.value)
+  const isAdmin = computed(() => userInfo.value?.role === 'admin' || userInfo.value?.role === 'superadmin')
+  const isSuperAdmin = computed(() => userInfo.value?.role === 'superadmin')
+
+  // 安全地保存数据到localStorage
+  const secureStore = (key, value) => {
+    try {
+      localStorage.setItem(key, value)
+    } catch (error) {
+      // 如果localStorage不可用（例如隐私模式），则静默失败
+      console.warn('无法保存到localStorage，可能处于隐私模式')
+    }
+  }
 
   // 生成设备码
   const generateDeviceCode = () => {
     if (!deviceCode.value) {
-      const browserInfo = navigator.userAgent + navigator.language + screen.width + screen.height
+      // 增加更多设备唯一性标识
+      const browserInfo = navigator.userAgent + 
+                          navigator.language + 
+                          screen.width + 
+                          screen.height + 
+                          navigator.hardwareConcurrency + 
+                          navigator.deviceMemory + 
+                          navigator.platform +
+                          new Date().getTimezoneOffset();
+      
       deviceCode.value = SHA3(browserInfo, { outputLength: 512 }).toString().toLowerCase()
-      localStorage.setItem('deviceCode', deviceCode.value)
+      secureStore('deviceCode', deviceCode.value)
     }
     return deviceCode.value
   }
@@ -45,16 +66,13 @@ export const useAuthStore = defineStore('auth', () => {
       if (response.data && response.data.public_key) {
         publicKey.value = response.data.public_key
         // 将公钥保存到localStorage，确保持久化
-        localStorage.setItem('publicKey', publicKey.value)
+        secureStore('publicKey', publicKey.value)
         encryptor.setPublicKey(publicKey.value)
-        console.log('公钥获取成功')
         return true
       } else {
-        console.error('获取公钥失败: 响应格式不正确', response.data)
         return false
       }
     } catch (error) {
-      console.error('获取公钥失败:', error)
       return false
     }
   }
@@ -73,14 +91,12 @@ export const useAuthStore = defineStore('auth', () => {
       }
       
       const device = generateDeviceCode()
-      // 移除敏感信息的日志输出
       const response = await service.post('/api/verify_invite', {
         device_code: device,
         invite_code: inviteCode
       })
       return response.data
     } catch (error) {
-      console.error('邀请码验证失败:', error.response?.status || error.message) // 不输出完整错误对象
       throw new Error(error.response?.data?.message || '邀请码验证失败')
     }
   }
@@ -117,12 +133,11 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = newToken
       userInfo.value = user
       
-      localStorage.setItem('token', newToken)
-      localStorage.setItem('userInfo', JSON.stringify(user))
+      secureStore('token', newToken)
+      secureStore('userInfo', JSON.stringify(user))
       
       return true
     } catch (error) {
-      console.error('登录失败:', error)
       throw new Error(error.response?.data?.message || '登录失败')
     }
   }
@@ -136,7 +151,7 @@ export const useAuthStore = defineStore('auth', () => {
     router.push('/login')
   }
 
-    // 刷新token
+  // 刷新token
   const refreshToken = async () => {
     try {
       const response = await service.post('/api/auth/refresh_token')
@@ -146,12 +161,11 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = newToken
       userInfo.value = user
       
-      localStorage.setItem('token', newToken)
-      localStorage.setItem('userInfo', JSON.stringify(user))
+      secureStore('token', newToken)
+      secureStore('userInfo', JSON.stringify(user))
       
       return true
     } catch (error) {
-      console.error('刷新token失败:', error)
       throw new Error(error.response?.data?.message || 'token刷新失败')
     }
   }
@@ -165,7 +179,6 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await service.post('/api/auth/updatekey')
       return response
     } catch (error) {
-      console.error('更新密钥失败:', error)
       throw new Error(error.response?.data?.message || '更新密钥失败')
     }
   }
@@ -178,6 +191,8 @@ export const useAuthStore = defineStore('auth', () => {
     cryptoService,
     encryptor,
     isAuthenticated,
+    isAdmin,
+    isSuperAdmin,
     generateDeviceCode,
     fetchPublicKey,
     verifyInviteCode,

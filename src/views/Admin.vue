@@ -1,6 +1,6 @@
 <template>
   <div class="admin-container">
-    <el-tabs v-model="activeTab" class="admin-tabs">
+    <el-tabs v-model="activeTab" class="admin-tabs" @tab-change="handleTabChange">
       <!-- 用户管理 -->
       <el-tab-pane label="用户管理" name="users">
         <el-card>
@@ -17,8 +17,8 @@
             <el-table-column prop="account" label="账号" width="120" />
             <el-table-column prop="role" label="角色" width="100">
               <template #default="{ row }">
-                <el-tag :type="row.role === 'admin' ? 'danger' : 'success'">
-                  {{ row.role === 'admin' ? '管理员' : '普通用户' }}
+                <el-tag :type="getRoleTagType(row.role)">
+                  {{ getRoleText(row.role) }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -33,23 +33,29 @@
                 {{ formatDate(row.lastLoginTime) }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="150" fixed="right">
+            <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button
-                  link
-                  type="primary"
-                  @click="handleResetPassword(row)"
-                >
-                  重置密码
-                </el-button>
-                <el-button
-                  link
-                  type="danger"
-                  @click="handleDeleteUser(row)"
-                  :disabled="row.role === 'admin'"
-                >
-                  删除
-                </el-button>
+                <div class="action-buttons">
+                  <el-button
+                    size="small"
+                    type="primary"
+                    @click="handleResetPassword(row)"
+                    class="action-btn reset-btn"
+                  >
+                    <el-icon><Key /></el-icon>
+                    重置密码
+                  </el-button>
+                  <el-button
+                    size="small"
+                    type="danger"
+                    @click="handleDeleteUser(row)"
+                    :disabled="row.role === 'admin'"
+                    class="action-btn"
+                  >
+                    <el-icon><Delete /></el-icon>
+                    删除
+                  </el-button>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -62,9 +68,22 @@
           <template #header>
             <div class="card-header">
               <span>查询记录</span>
-              <el-button type="primary" @click="handleExportLogs">
-                <el-icon><Download /></el-icon> 导出日志
-              </el-button>
+              <div class="header-buttons">
+                <el-button 
+                  type="danger" 
+                  @click="handleClearLogs" 
+                  class="clear-btn"
+                >
+                  <el-icon><Delete /></el-icon> 清除日志
+                </el-button>
+                <el-button 
+                  type="primary" 
+                  @click="handleExportLogs" 
+                  class="export-btn"
+                >
+                  <el-icon><Download /></el-icon> 导出日志
+                </el-button>
+              </div>
             </div>
           </template>
 
@@ -76,9 +95,15 @@
             </el-table-column>
             <el-table-column prop="account" label="操作账号" width="120" />
             <el-table-column prop="ip" label="IP地址" width="120" />
-            <el-table-column prop="action" label="操作类型" width="120" />
+            <el-table-column prop="action" label="操作类型" width="150">
+              <template #default="{ row }">
+                <el-tag :type="getActionTagType(row.action)">
+                  {{ formatAction(row.action) }}
+                </el-tag>
+              </template>
+            </el-table-column>
             <el-table-column prop="query" label="查询内容" show-overflow-tooltip />
-            <el-table-column prop="resultCount" label="结果数" width="80" />
+            <el-table-column prop="result_count" label="结果数" width="80" />
           </el-table>
 
           <div class="pagination">
@@ -249,22 +274,59 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
-import { Plus, Download, Refresh } from '@element-plus/icons-vue'
+import { ref, onMounted, nextTick, watch } from 'vue'
+import { Plus, Download, Refresh, Key, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
 
 // 标签页
 const activeTab = ref('users')
 
+// 监听标签页变化，加载相应数据
+const handleTabChange = (tab) => {
+  // 根据当前活动的标签页加载相应数据
+  if (tab === 'users') {
+    fetchUsers()
+  } else if (tab === 'logs') {
+    fetchQueryLogs()
+  } else if (tab === 'monitor') {
+    refreshSystemStatus()
+  }
+}
+
 // 用户列表
 const users = ref([])
 
 // 查询日志
-const queryLogs = ref([])
+const queryLogs = ref([
+  {
+    timestamp: new Date(),
+    account: 'admin',
+    ip: '192.168.1.100',
+    action: '查询',
+    query: '姓名:张三',
+    result_count: 5
+  },
+  {
+    timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
+    account: 'user1',
+    ip: '192.168.1.101',
+    action: '导出',
+    query: '班级:初一(1)班',
+    result_count: 42
+  },
+  {
+    timestamp: new Date(Date.now() - 48 * 60 * 60 * 1000),
+    account: 'admin',
+    ip: '192.168.1.100',
+    action: '查询',
+    query: '学号:20230001',
+    result_count: 1
+  }
+])
 const currentPage = ref(1)
 const pageSize = ref(10)
-const total = ref(0)
+const total = ref(3)
 
 // 系统状态
 const systemStatus = ref({
@@ -331,18 +393,41 @@ const fetchUsers = async () => {
 // 获取查询日志
 const fetchQueryLogs = async () => {
   try {
-    // 使用GET方法，参数通过params传递，安全头信息会在request.js中自动添加
+    // 使用GET方法，参数通过params传递
     const response = await request.get('/api/admin/logs', {
       params: {
         page: currentPage.value,
         size: pageSize.value
       }
     })
-    // 响应已在request.js的拦截器中解密
-    queryLogs.value = response.data
-    total.value = response.total
+    
+    console.log('查询日志响应:', response)
+    
+    // 处理返回的日志数据，这是一个包含 logs 数组的对象
+    if (response && response.logs && Array.isArray(response.logs)) {
+      // 将查询内容从对象转为字符串以便显示
+      queryLogs.value = response.logs.map(log => ({
+        ...log,
+        query: log.query ? JSON.stringify(log.query) : ''
+      }))
+      total.value = response.logs.length
+    } else if (response && Array.isArray(response)) {
+      // 兼容直接返回数组的情况
+      queryLogs.value = response.map(log => ({
+        ...log,
+        query: log.query ? JSON.stringify(log.query) : ''
+      }))
+      total.value = response.length
+    } else {
+      console.error('查询日志数据格式不正确:', response)
+      queryLogs.value = []
+      total.value = 0
+    }
   } catch (error) {
+    console.error('获取查询日志失败:', error)
     ElMessage.error('获取查询日志失败：' + error.message)
+    queryLogs.value = []
+    total.value = 0
   }
 }
 
@@ -490,21 +575,115 @@ const handleDeleteUser = async (user) => {
 // 导出日志
 const handleExportLogs = async () => {
   try {
-    // 使用GET方法，安全头信息会在request.js中自动添加
-    // 对于文件下载，需要特殊处理响应类型
-    const response = await request.get('/api/admin/export-logs', {
-      responseType: 'blob'
+    ElMessage.info('正在准备导出日志，请稍候...')
+    
+    // 先获取日志数据，然后手动生成表格
+    const response = await request.get('/api/admin/logs', {
+      params: {
+        page: 1,
+        size: 1000  // 获取更多日志
+      }
     })
-    // 注意：对于blob类型响应，不会经过常规的响应拦截器解密
-    // 服务端应直接返回解密后的文件内容
-    const blob = new Blob([response], { type: 'application/vnd.ms-excel' })
+    
+    let logsData = []
+    
+    // 处理返回的日志数据
+    if (response && response.logs && Array.isArray(response.logs)) {
+      logsData = response.logs
+    } else if (response && Array.isArray(response)) {
+      logsData = response
+    } else {
+      throw new Error('获取日志数据失败，数据格式不正确')
+    }
+    
+    if (logsData.length === 0) {
+      ElMessage.warning('没有日志数据可供导出')
+      return
+    }
+    
+    // 创建工作表数据
+    const header = ['时间', '操作账号', 'IP地址', '操作类型', '查询内容', '结果数']
+    const rows = logsData.map(log => [
+      formatDate(log.timestamp),
+      log.account || '',
+      log.ip || '',
+      formatAction(log.action) || '',
+      typeof log.query === 'object' ? JSON.stringify(log.query) : (log.query || ''),
+      log.result_count?.toString() || '0'
+    ])
+    
+    // 组装CSV内容
+    let csvContent = header.join(',') + '\n'
+    rows.forEach(row => {
+      // 确保CSV字段中的逗号和引号被正确处理
+      const processedRow = row.map(field => {
+        // 如果字段包含逗号、引号或换行符，将其包裹在引号中
+        if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+          // 将字段中的引号替换为两个引号（CSV标准）
+          return `"${field.replace(/"/g, '""')}"`
+        }
+        return field
+      })
+      csvContent += processedRow.join(',') + '\n'
+    })
+    
+    // 创建 Blob 并下载
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    
+    // 创建下载链接并点击
     const link = document.createElement('a')
     link.href = window.URL.createObjectURL(blob)
-    link.download = `查询日志_${new Date().toLocaleDateString()}.xlsx`
+    // 使用当前日期作为文件名
+    const date = new Date().toISOString().split('T')[0]
+    link.download = `系统查询日志_${date}.csv`
     link.click()
+    
+    // 清理 URL 对象
     window.URL.revokeObjectURL(link.href)
+    
+    ElMessage.success('日志导出成功')
   } catch (error) {
-    ElMessage.error('导出日志失败：' + error.message)
+    console.error('导出日志失败:', error)
+    ElMessage.error('导出日志失败：' + (error.message || '未知错误'))
+  }
+}
+
+// 清除日志
+const handleClearLogs = async () => {
+  try {
+    // 弹出确认框
+    await ElMessageBox.confirm(
+      '确定要清除所有查询日志吗？此操作不可恢复！',
+      '警告',
+      {
+        confirmButtonText: '确定清除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        distinguishCancelAndClose: true,
+        closeOnClickModal: false
+      }
+    )
+    
+    loading.value = true
+    ElMessage.info('正在清除日志，请稍候...')
+    
+    // 调用清除日志接口
+    const response = await request.post('/api/admin/clear-logs', {
+      log_type: 'query' // 清除查询日志
+    })
+    
+    // 清除成功后刷新日志列表
+    await fetchQueryLogs()
+    
+    // 显示成功消息
+    ElMessage.success('日志清除成功')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      console.error('清除日志失败:', error)
+      ElMessage.error('清除日志失败：' + (error.message || '未知错误'))
+    }
+  } finally {
+    loading.value = false
   }
 }
 
@@ -550,6 +729,70 @@ const handleCurrentChange = (val) => {
   fetchQueryLogs()
 }
 
+// 工具函数
+const getRoleTagType = (role) => {
+  switch (role) {
+    case 'superadmin': return 'danger'
+    case 'admin': return 'warning'
+    case 'user': return 'success'
+    default: return 'info'
+  }
+}
+
+const getRoleText = (role) => {
+  switch (role) {
+    case 'superadmin': return '超级管理员'
+    case 'admin': return '管理员'
+    case 'user': return '普通用户'
+    default: return role // 直接显示role属性的内容
+  }
+}
+
+// 根据操作类型返回标签类型
+const getActionTagType = (action) => {
+  if (!action) return 'info';
+  
+  if (action.includes('login_success') || action.includes('success')) {
+    return 'success';
+  } else if (action.includes('query') || action.includes('get_')) {
+    return 'info';
+  } else if (action.includes('export') || action.includes('download')) {
+    return 'warning';
+  } else if (action.includes('delete') || action.includes('remove') || action.includes('fail') || action.includes('error')) {
+    return 'danger';
+  } else if (action.includes('add') || action.includes('create') || action.includes('insert') || action.includes('update')) {
+    return 'primary';
+  }
+  
+  return 'info';
+}
+
+// 格式化操作类型为友好显示
+const formatAction = (action) => {
+  if (!action) return '未知操作';
+  
+  // 登录相关
+  if (action === 'login_success') return '登录成功';
+  if (action === 'login_fail') return '登录失败';
+  if (action === 'logout') return '登出';
+  
+  // 查询相关
+  if (action === 'query_students') return '查询学生';
+  if (action === 'get_login_records') return '查看登录记录';
+  if (action === 'get_system_status') return '查看系统状态';
+  if (action === 'get_admin_logs') return '查看管理日志';
+  
+  // 管理相关
+  if (action === 'admin_get_online_users') return '查看在线用户';
+  if (action === 'admin_export_logs_attempt') return '导出日志';
+  if (action === 'superadmin_get_blacklist_ips') return '查看黑名单';
+  if (action === 'superadmin_activate_admin') return '激活管理员';
+  if (action === 'superadmin_set_custom_role') return '设置角色';
+  
+  // 如果没有匹配的，美化显示格式
+  return action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
 // 格式化日期
 const formatDate = (date) => {
   if (!date) return ''
@@ -558,9 +801,20 @@ const formatDate = (date) => {
 
 // 初始化数据
 onMounted(async () => {
-  await fetchUsers()
-  await fetchSystemStatus()
-  await fetchOnlineUsers()
+  await fetchUsers() // 默认加载用户列表
+  
+  // 如果默认标签页不是 users，则加载对应标签页的数据
+  if (activeTab.value === 'logs') {
+    await fetchQueryLogs()
+  } else if (activeTab.value === 'monitor') {
+    await fetchSystemStatus()
+    await fetchOnlineUsers()
+  }
+})
+
+// 监听标签页变化
+watch(() => activeTab.value, (newTab) => {
+  handleTabChange(newTab)
 })
 </script>
 
@@ -602,12 +856,25 @@ onMounted(async () => {
   margin-bottom: 25px;
 }
 
+:deep(.el-tabs__nav-wrap) {
+  /* 确保导航包装元素不会裁剪内容 */
+  overflow: visible !important;
+}
+
+:deep(.el-tabs__nav) {
+  /* 确保导航元素不会裁剪内容 */
+  overflow: visible !important;
+}
+
 :deep(.el-tabs__item) {
   font-size: 16px;
   font-weight: 600;
   padding: 0 25px;
   border-radius: 10px 10px 0 0;
   transition: all 0.3s ease;
+  position: relative;
+  overflow: visible !important; /* 确保内容不被裁剪 */
+  margin: 0 2px; /* 添加边距，避免相邻标签项背景重叠 */
 }
 
 :deep(.el-tabs__item:hover) {
@@ -615,13 +882,14 @@ onMounted(async () => {
 }
 
 :deep(.el-tabs__item.is-active) {
+  color: #fff !important;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
+  box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
 }
 
 :deep(.el-tabs__active-bar) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  height: 3px;
+  background: transparent; /* 移除底部激活条 */
+  height: 0;
 }
 
 .card-header {
@@ -794,5 +1062,43 @@ onMounted(async () => {
 
 .monitor-card:nth-child(2) {
   animation-delay: 0.1s;
+}
+
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 120px;
+}
+
+.action-btn {
+  width: 100%;
+  margin: 0 !important;
+  justify-content: center;
+}
+
+.reset-btn {
+  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+  border: none;
+}
+
+.reset-btn:hover {
+  background: linear-gradient(135deg, #2980b9 0%, #2471a3 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+}
+
+.export-btn {
+  background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
+  border: none;
+  padding: 8px 16px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.export-btn:hover {
+  background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
 }
 </style>

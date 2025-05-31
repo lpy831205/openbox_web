@@ -34,8 +34,9 @@
         :rules="inviteRules"
         label-position="top"
         @submit.prevent="handleVerifyInvite"
+        class="invite-form"
       >
-        <el-form-item label="邀请码" prop="inviteCode">
+        <el-form-item label="邀请码" prop="inviteCode" class="invite-form-item">
           <el-input
             v-model="inviteData.inviteCode"
             placeholder="请输入邀请码"
@@ -290,12 +291,13 @@ const copyDeviceCode = async () => {
 <style scoped>
 .register-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--bg-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 25px;
+  padding: var(--spacing-xl);
   position: relative;
+  overflow: hidden;
 }
 
 .register-container::before {
@@ -305,20 +307,35 @@ const copyDeviceCode = async () => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="50" cy="50" r="1" fill="%23ffffff" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>') repeat;
-  pointer-events: none;
+  background: 
+    radial-gradient(circle at 25% 25%, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, rgba(6, 182, 212, 0.1) 0%, transparent 50%),
+    linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+  z-index: 0;
 }
 
 .register-card {
-  background: rgba(255, 255, 255, 0.98);
-  border-radius: 24px;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+  background: var(--bg-primary);
+  border-radius: var(--border-radius-2xl);
+  box-shadow: var(--shadow-2xl);
   width: 100%;
-  max-width: 480px;
+  max-width: 500px;
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  animation: slideUp 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: slideUp var(--transition-slow) cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.register-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
   z-index: 1;
 }
 
@@ -340,41 +357,43 @@ const copyDeviceCode = async () => {
 
 .card-header {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: var(--spacing-lg);
+  position: relative;
+  z-index: 2;
 }
 
 .card-header h2 {
-  color: #333;
-  margin: 0 0 8px 0;
-  font-size: 32px;
-  font-weight: 800;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-sm) 0;
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   letter-spacing: 1px;
-  text-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .subtitle {
-  color: #666;
-  margin: 0 0 16px 0;
-  font-size: 18px;
+  color: var(--text-secondary);
+  margin: 0 0 var(--spacing-lg) 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-medium);
 }
 
 .device-code-info {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: #606266;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  border: 3px solid #dee2e6;
-  padding: 25px;
-  border-radius: 16px;
+  gap: var(--spacing-sm);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  padding: var(--spacing-xl);
+  border-radius: var(--border-radius-xl);
   width: 100%;
   justify-content: center;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--transition-normal) cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
 }
@@ -386,13 +405,13 @@ const copyDeviceCode = async () => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
-  transition: left 0.6s ease;
+  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.1), transparent);
+  transition: left var(--transition-slow) ease;
 }
 
 .device-code-info:hover {
-  border-color: #667eea;
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow-lg);
   transform: translateY(-2px);
 }
 
@@ -401,34 +420,119 @@ const copyDeviceCode = async () => {
 }
 
 .device-code-text {
-  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Courier New', monospace;
-  background-color: #fff;
-  padding: 4px 8px;
-  border-radius: 4px;
-  border: 1px solid #dcdfe6;
+  font-family: var(--font-mono);
+  background: var(--bg-primary);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-color);
   cursor: pointer;
-  font-weight: 800;
+  font-weight: var(--font-bold);
   letter-spacing: 2px;
   position: relative;
   z-index: 1;
+  transition: all var(--transition-fast) ease;
+}
+
+.device-code-text:hover {
+  background: var(--bg-secondary);
+  transform: scale(1.02);
 }
 
 .steps {
-  margin: 20px 0;
+  margin: var(--spacing-lg) 0;
+  padding: 0 var(--spacing-md);
+}
+
+:deep(.el-steps) {
+  margin: var(--spacing-2xl) 0 !important;
+}
+
+:deep(.el-step__head) {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 50% !important;
+  transition: all var(--transition-normal) cubic-bezier(0.4, 0, 0.2, 1) !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+:deep(.el-step__head.is-process) {
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)) !important;
+  border-color: var(--primary-color) !important;
+  transform: scale(1.1) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+:deep(.el-step__head.is-wait) {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+}
+
+:deep(.el-step__head.is-finish) {
+  background: var(--success-color) !important;
+  border-color: var(--success-color) !important;
+}
+
+:deep(.el-step__line) {
+  background-color: var(--border-color) !important;
+  height: 3px !important;
+  border-radius: var(--border-radius-sm) !important;
+  transition: all var(--transition-normal) ease !important;
+}
+
+:deep(.el-step__line.is-process) {
+  background: linear-gradient(90deg, var(--primary-color), var(--secondary-color)) !important;
+}
+
+:deep(.el-step__line.is-finish) {
+  background: var(--success-color) !important;
+}
+
+:deep(.el-step__title) {
+  font-weight: var(--font-medium) !important;
+  color: var(--text-primary) !important;
+  margin-top: 8px !important;
+  font-size: 16px !important;
+}
+
+:deep(.el-step__title.is-process) {
+  color: var(--primary-color) !important;
+  font-weight: var(--font-semibold) !important;
+}
+
+:deep(.el-step__title.is-wait) {
+  color: var(--text-secondary) !important;
+}
+
+:deep(.el-step__icon-inner) {
+  font-weight: 600 !important;
+  font-size: 16px !important;
+}
+
+:deep(.el-step) {
+  padding-right: 20px !important; /* 增加步骤之间的间距 */
+}
+
+:deep(.el-step.is-horizontal .el-step__line) {
+  height: 2px !important;
+  top: 20px !important;
+  left: 0 !important;
+  right: 0 !important;
 }
 
 .submit-btn {
   width: 100%;
-  margin-bottom: 10px;
-  height: 50px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  margin-bottom: var(--spacing-md);
+  height: 52px;
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
   border: none;
-  border-radius: 14px;
+  border-radius: var(--border-radius-lg);
   color: white;
-  font-size: 17px;
-  font-weight: 700;
+  font-size: var(--text-lg);
+  font-weight: var(--font-bold);
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--transition-fast) cubic-bezier(0.4, 0, 0.2, 1);
   text-transform: uppercase;
   letter-spacing: 1px;
   position: relative;
@@ -443,13 +547,13 @@ const copyDeviceCode = async () => {
   width: 100%;
   height: 100%;
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.6s ease;
+  transition: left var(--transition-slow) ease;
 }
 
 .submit-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+  background: linear-gradient(135deg, var(--primary-dark), var(--secondary-dark));
   transform: translateY(-3px);
-  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
+  box-shadow: var(--shadow-xl);
 }
 
 .submit-btn:hover:not(:disabled)::before {
@@ -457,7 +561,7 @@ const copyDeviceCode = async () => {
 }
 
 .submit-btn:disabled {
-  background: #c0c4cc;
+  background: var(--neutral-400);
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
@@ -479,30 +583,35 @@ const copyDeviceCode = async () => {
 
 .back-btn {
   width: 100%;
-  height: 45px;
-  border-radius: 12px;
-  font-weight: 600;
-  transition: all 0.3s ease;
+  height: 48px;
+  border-radius: var(--border-radius-lg);
+  font-weight: var(--font-semibold);
+  transition: all var(--transition-fast) ease;
+  border: 2px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .back-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-color);
+  background: var(--bg-primary);
 }
 
 .form-footer {
   text-align: center;
-  margin-top: 30px;
-  font-size: 15px;
-  color: #606266;
-  font-weight: 500;
+  margin-top: var(--spacing-xl);
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  font-weight: var(--font-medium);
 }
 
 .login-link {
-  color: #667eea;
+  color: var(--primary-color);
   text-decoration: none;
-  font-weight: 700;
-  transition: all 0.3s ease;
+  font-weight: var(--font-bold);
+  transition: all var(--transition-fast) ease;
   position: relative;
 }
 
@@ -513,12 +622,13 @@ const copyDeviceCode = async () => {
   left: 0;
   width: 0;
   height: 2px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  transition: width 0.3s ease;
+  background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+  transition: width var(--transition-fast) ease;
 }
 
 .login-link:hover {
-  color: #5a6fd8;
+  color: var(--primary-dark);
+  transform: translateY(-1px);
 }
 
 .login-link:hover::after {
@@ -526,107 +636,200 @@ const copyDeviceCode = async () => {
 }
 
 /* Element Plus 样式覆盖 */
+:deep(.el-form-item__label) {
+  color: var(--text-primary) !important;
+  font-weight: var(--font-medium) !important;
+  font-size: var(--text-sm) !important;
+}
+
 :deep(.el-input__wrapper) {
-  border-radius: 14px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 2px solid #e4e7ed;
-  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: var(--border-radius-lg) !important;
+  box-shadow: var(--shadow-sm) !important;
+  transition: all var(--transition-fast) cubic-bezier(0.4, 0, 0.2, 1) !important;
+  border: 2px solid var(--border-color) !important;
+  background: var(--bg-primary) !important;
 }
 
 :deep(.el-input__wrapper:hover) {
-  border-color: #c0c4cc;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-  transform: translateY(-1px);
+  border-color: var(--neutral-300) !important;
+  box-shadow: var(--shadow-md) !important;
+  transform: translateY(-1px) !important;
 }
 
 :deep(.el-input__wrapper.is-focus) {
-  border-color: #667eea;
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
-  transform: translateY(-1px);
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
+  transform: translateY(-1px) !important;
 }
 
 :deep(.el-input__inner) {
-  font-size: 16px;
-  padding: 14px 18px;
-  font-weight: 500;
+  font-size: var(--text-base) !important;
+  padding: var(--spacing-md) var(--spacing-lg) !important;
+  font-weight: var(--font-medium) !important;
+  color: var(--text-primary) !important;
 }
 
 :deep(.el-form-item__error) {
-  font-size: 13px;
-  margin-top: 6px;
-  font-weight: 600;
+  font-size: var(--text-xs) !important;
+  margin-top: var(--spacing-xs) !important;
+  font-weight: var(--font-semibold) !important;
+  color: var(--error-color) !important;
 }
 
-:deep(.el-steps) {
-  margin: 35px 0;
+:deep(.el-alert) {
+  border-radius: var(--border-radius-lg) !important;
+  border: none !important;
+  background: var(--bg-secondary) !important;
 }
 
-:deep(.el-step__head) {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-:deep(.el-step__head.is-process) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-color: #667eea;
-  transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-:deep(.el-step__line) {
-  background-color: #e4e7ed;
-  height: 3px;
-  border-radius: 2px;
-  transition: all 0.4s ease;
-}
-
-:deep(.el-step__line.is-process) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+:deep(.el-alert__content) {
+  color: var(--text-secondary) !important;
+  font-size: var(--text-xs) !important;
 }
 
 /* 响应式设计 */
 @media (max-width: 768px) {
   .register-container {
-    padding: 20px 15px;
+    padding: var(--spacing-lg) var(--spacing-md);
   }
   
   .register-card {
     max-width: 100%;
-    border-radius: 20px;
+    border-radius: var(--border-radius-xl);
+    margin: 0 var(--spacing-sm);
   }
   
   .card-header h2 {
-    font-size: 28px;
+    font-size: var(--text-2xl);
   }
   
   .device-code-info {
-    padding: 20px;
+    padding: var(--spacing-lg);
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+  
+  .device-code-text {
+    word-break: break-all;
+  }
+  
+  :deep(.el-steps) {
+    margin: var(--spacing-lg) 0 !important;
+  }
+  
+  :deep(.el-step__head) {
+    width: 32px !important;
+    height: 32px !important;
   }
 }
 
 @media (max-width: 480px) {
   .register-container {
-    padding: 15px 10px;
+    padding: var(--spacing-md) var(--spacing-sm);
   }
   
   .register-card {
-    border-radius: 16px;
+    border-radius: var(--border-radius-lg);
+    margin: 0;
   }
   
   .card-header h2 {
-    font-size: 24px;
+    font-size: var(--text-xl);
   }
   
   .device-code-info {
-    padding: 18px 15px;
+    padding: var(--spacing-md);
   }
   
   .submit-btn {
-    height: 45px;
-    font-size: 15px;
+    height: 48px;
+    font-size: var(--text-base);
   }
+  
+  .back-btn {
+    height: 44px;
+  }
+  
+  :deep(.el-input__inner) {
+    padding: var(--spacing-sm) var(--spacing-md) !important;
+  }
+}
+
+/* 高对比度模式支持 */
+@media (prefers-contrast: high) {
+  .register-card {
+    border: 2px solid var(--text-primary);
+  }
+  
+  .card-header h2 {
+    -webkit-text-fill-color: var(--text-primary);
+  }
+  
+  .device-code-info {
+    border: 3px solid var(--text-primary);
+  }
+}
+
+/* 减少动画模式支持 */
+@media (prefers-reduced-motion: reduce) {
+  .register-card {
+    animation: none;
+  }
+  
+  .submit-btn::before,
+  .device-code-info::before {
+    display: none;
+  }
+  
+  .submit-btn:hover,
+  .back-btn:hover,
+  .login-link:hover,
+  .device-code-info:hover {
+    transform: none;
+  }
+  
+  :deep(.el-step__head) {
+    transition: none !important;
+  }
+}
+
+/* 打印样式 */
+@media print {
+  .register-container {
+    background: white;
+    padding: 0;
+  }
+  
+  .register-card {
+    box-shadow: none;
+    border: 1px solid #000;
+  }
+  
+  .submit-btn,
+  .back-btn {
+    display: none;
+  }
+}
+
+.invite-form {
+  margin-bottom: var(--spacing-xl);
+}
+
+.invite-form-item {
+  margin-bottom: var(--spacing-2xl);
+}
+
+/* 确保错误提示有足够的空间显示 */
+:deep(.el-form-item__error) {
+  position: absolute;
+  margin-top: 4px;
+  font-size: var(--text-xs) !important;
+  font-weight: var(--font-semibold) !important;
+  color: var(--error-color) !important;
+  z-index: 2;
+}
+
+:deep(.el-steps) {
+  margin: var(--spacing-2xl) 0 !important;
 }
 </style>

@@ -12,10 +12,7 @@
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>激活管理员权限</span>
-              <el-button type="primary" @click="showActivateDialog">
-                <el-icon><Star /></el-icon> 激活管理员
-              </el-button>
+              <span>用户管理</span>
             </div>
           </template>
 
@@ -49,6 +46,31 @@
             <el-table-column prop="lastLoginTime" label="最后登录" width="180">
               <template #default="{ row }">
                 {{ formatDate(row.lastLoginTime) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="220" fixed="right">
+              <template #default="{ row }">
+                <div class="action-buttons">
+                  <el-button
+                    size="small"
+                    type="primary"
+                    @click="activateAdmin(row)"
+                    :disabled="row.role === 'admin' || row.role === 'superadmin'"
+                    class="action-btn"
+                  >
+                    <el-icon><Star /></el-icon>
+                    激活管理员
+                  </el-button>
+                  <el-button
+                    size="small"
+                    type="success"
+                    @click="setCustomRole(row)"
+                    class="action-btn"
+                  >
+                    <el-icon><Edit /></el-icon>
+                    自定义角色
+                  </el-button>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -164,19 +186,25 @@
       width="500px"
       destroy-on-close
     >
+      <el-alert
+        title="激活管理员权限后将无法撤销，请确认操作"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="mb-4"
+      />
+      
+      <div class="confirm-user-info">
+        <p><strong>账号：</strong>{{ activateForm.account }}</p>
+        <p><strong>当前角色：</strong>{{ activateForm.currentRole }}</p>
+      </div>
+      
       <el-form
         ref="activateFormRef"
         :model="activateForm"
         :rules="activateRules"
         label-position="top"
       >
-        <el-form-item label="目标账号" prop="account">
-          <el-input
-            v-model="activateForm.account"
-            placeholder="请输入要激活为管理员的账号"
-            clearable
-          />
-        </el-form-item>
         <el-form-item label="确认操作" prop="confirm">
           <el-checkbox v-model="activateForm.confirm">
             我确认要将此账号激活为管理员（此操作不可逆）
@@ -243,6 +271,55 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 添加自定义角色对话框 -->
+    <el-dialog
+      v-model="customRoleDialogVisible"
+      title="设置自定义角色"
+      width="500px"
+      destroy-on-close
+    >
+      <el-form
+        ref="customRoleFormRef"
+        :model="customRoleForm"
+        :rules="customRoleRules"
+        label-position="top"
+      >
+        <el-form-item label="目标账号" prop="account">
+          <el-input
+            v-model="customRoleForm.account"
+            placeholder="请输入要设置角色的账号"
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="自定义角色" prop="role">
+          <el-input
+            v-model="customRoleForm.role"
+            placeholder="请输入自定义角色名称"
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="确认操作" prop="confirm">
+          <el-checkbox v-model="customRoleForm.confirm">
+            我确认要将此账号设置为自定义角色
+          </el-checkbox>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="customRoleDialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            @click="confirmCustomRole"
+            :loading="loading"
+            :disabled="!customRoleForm.confirm"
+          >
+            确认设置
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -250,7 +327,7 @@
 import { ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Star, UserFilled, Plus, Refresh } from '@element-plus/icons-vue'
+import { Star, UserFilled, Plus, Refresh, Edit } from '@element-plus/icons-vue'
 import request from '../utils/request'
 
 const router = useRouter()
@@ -274,21 +351,23 @@ const suspiciousActivities = ref([])
 // 对话框控制
 const activateDialogVisible = ref(false)
 const blacklistDialogVisible = ref(false)
+const customRoleDialogVisible = ref(false)
 
 // 表单引用
 const activateFormRef = ref(null)
 const blacklistFormRef = ref(null)
+const customRoleFormRef = ref(null)
 
 // 激活管理员表单
 const activateForm = ref({
   account: '',
+  currentRole: '',
   confirm: false
 })
 
 const activateRules = {
-  account: [
-    { required: true, message: '请输入账号', trigger: 'blur' },
-    { min: 3, max: 20, message: '长度在 3 到 20 个字符', trigger: 'blur' }
+  confirm: [
+    { type: 'boolean', message: '请确认操作', trigger: 'change', transform: value => value === true }
   ]
 }
 
@@ -309,6 +388,25 @@ const blacklistRules = {
   ],
   reason: [
     { required: true, message: '请输入封禁原因', trigger: 'blur' }
+  ]
+}
+
+// 添加自定义角色相关状态
+const customRoleForm = ref({
+  account: '',
+  role: '',
+  confirm: false
+})
+
+const customRoleRules = {
+  account: [
+    { required: true, message: '请输入账号', trigger: 'blur' }
+  ],
+  role: [
+    { required: true, message: '请输入角色名称', trigger: 'blur' }
+  ],
+  confirm: [
+    { type: 'boolean', message: '请确认操作', trigger: 'change', transform: value => value === true }
   ]
 }
 
@@ -356,11 +454,40 @@ const fetchSecurityData = async () => {
 
 // 显示激活管理员对话框
 const showActivateDialog = () => {
-  activateForm.value = {
-    account: '',
-    confirm: false
-  }
+  activateForm.value.account = ''
+  activateForm.value.currentRole = ''
+  activateForm.value.confirm = false
   activateDialogVisible.value = true
+}
+
+// 激活指定用户为管理员
+const activateAdmin = (user) => {
+  activateForm.value.account = user.account
+  activateForm.value.currentRole = getRoleText(user.role)
+  activateForm.value.confirm = false
+  activateDialogVisible.value = true
+  
+  // DOM 更新后重置表单校验状态
+  nextTick(() => {
+    if (activateFormRef.value) {
+      activateFormRef.value.resetFields()
+    }
+  })
+}
+
+// 设置自定义角色
+const setCustomRole = (user) => {
+  customRoleForm.value.account = user.account
+  customRoleForm.value.role = ''
+  customRoleForm.value.confirm = false
+  customRoleDialogVisible.value = true
+  
+  // DOM 更新后重置表单校验状态
+  nextTick(() => {
+    if (customRoleFormRef.value) {
+      customRoleFormRef.value.resetFields()
+    }
+  })
 }
 
 // 确认激活管理员
@@ -511,6 +638,41 @@ const formatDeviceCode = (deviceCode) => {
 const formatDate = (date) => {
   if (!date) return ''
   return new Date(date).toLocaleString()
+}
+
+// 显示自定义角色对话框
+const showCustomRoleDialog = () => {
+  customRoleForm.value = {
+    account: '',
+    role: '',
+    confirm: false
+  }
+  customRoleDialogVisible.value = true
+}
+
+// 确认设置自定义角色
+const confirmCustomRole = async () => {
+  if (!customRoleFormRef.value) return
+
+  try {
+    await customRoleFormRef.value.validate()
+    loading.value = true
+    
+    await request.post('/api/superadmin/set-custom-role', {
+      account: customRoleForm.value.account,
+      role: customRoleForm.value.role
+    })
+    
+    ElMessage.success('角色设置成功')
+    customRoleDialogVisible.value = false
+    await fetchAdminUsers()
+  } catch (error) {
+    if (error.message) {
+      ElMessage.error('设置角色失败：' + error.message)
+    }
+  } finally {
+    loading.value = false
+  }
 }
 
 // 初始化数据
@@ -695,5 +857,41 @@ onMounted(async () => {
     padding: 15px 10px;
     border-radius: 12px;
   }
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.confirm-user-info {
+  background: rgba(102, 126, 234, 0.1);
+  border-radius: 10px;
+  padding: 15px;
+  margin-bottom: 20px;
+  border-left: 4px solid var(--el-color-primary);
+}
+
+.confirm-user-info p {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.confirm-user-info strong {
+  color: #303133;
+  margin-right: 5px;
+}
+
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 120px;
+}
+
+.action-btn {
+  width: 100%;
+  margin: 0;
+  justify-content: center;
 }
 </style>

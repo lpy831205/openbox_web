@@ -167,13 +167,9 @@ const fetchLoginRecords = async () => {
   try {
     // 使用post方法替代get方法，确保请求体被加密
     // 即使没有参数，也使用post方法以确保请求头中的认证信息被加密传输
-    const response = await request.get('/api/auth/login-records', {
-      // 可以添加分页参数
-      page: 1,
-      size: 10
-    })
+    const response = await request.post('/api/auth/login-records')
     // 响应已在request.js的拦截器中解密
-    loginRecords.value = response.data
+    loginRecords.value = response // 服务器直接返回数组，而不是包含在对象中
   } catch (error) {
     ElMessage.error('获取登录记录失败：' + error.message)
   }
