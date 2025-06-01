@@ -192,8 +192,8 @@ const registerRules = {
 onMounted(async () => {
   // 获取服务器公钥
   await authStore.fetchPublicKey()
-  // 生成设备码
-  authStore.generateDeviceCode()
+  // 生成设备码 - 使用await确保异步操作完成
+  await authStore.generateDeviceCode()
 })
 
 // 验证邀请码

@@ -1,9 +1,36 @@
 import axios from 'axios'
 import CryptoJS from 'crypto-js'
-// 不再直接导入cryptoService，改为从auth.js获取
+// 不再导入外部security模块，直接在文件内部定义
 
 // 避免循环依赖，改为动态导入
 let authStore = null
+
+// 简单的安全工具对象
+const security = {
+  sanitizeInput(input) {
+    if (typeof input !== 'string') return input;
+    // 基本的XSS防护
+    return input
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  },
+  
+  sanitizeHtml(html) {
+    if (typeof html !== 'string') return html;
+    // 简单的HTML清理
+    return html
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/on\w+="[^"]*"/gi, '')
+      .replace(/on\w+='[^']*'/gi, '');
+  },
+  
+  getCsrfToken() {
+    // 从cookie或localStorage获取CSRF令牌
+    return localStorage.getItem('csrf_token') || '';
+  }
+};
 
 // 创建axios实例
 const service = axios.create({
@@ -39,9 +66,40 @@ const getClientIP = async () => {
   }
 }
 
+// 安全检查函数 - 检查URL是否安全
+const isSafeUrl = (url) => {
+  // 检查是否是绝对URL（包含协议）
+  if (/^https?:\/\//i.test(url)) {
+    // 检查是否指向允许的域名
+    const allowedDomains = [
+      window.location.hostname,
+      'api.example.com',
+      'ips.im'
+    ];
+    
+    try {
+      const urlObj = new URL(url);
+      return allowedDomains.some(domain => 
+        urlObj.hostname === domain || 
+        urlObj.hostname.endsWith(`.${domain}`)
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+  
+  // 相对URL被认为是安全的
+  return true;
+};
+
 // 请求拦截器
 service.interceptors.request.use(
   async (config) => {
+    // 安全检查 - 验证URL
+    if (!isSafeUrl(config.url)) {
+      return Promise.reject(new Error('请求URL不安全'));
+    }
+    
     // 对于公钥请求，不需要加密和认证
     if (config.url === '/api/auth/public-key') {
       return config
@@ -63,10 +121,10 @@ service.interceptors.request.use(
 
     const token = auth.token
 
-    // 生成加密所需的参数
-    const nonce = cryptoService.generateNonce()
+    // 生成加密所需的参数 - 确保所有异步操作完成
+    const nonce = await cryptoService.generateNonce()
     const timestamp = Date.now().toString()
-    const aesKey = cryptoService.generateAESKey()
+    const aesKey = await cryptoService.generateAESKey()
 
     // 存储AES密钥到请求配置中，以便在响应拦截器中使用
     config._aesKey = aesKey
@@ -77,7 +135,7 @@ service.interceptors.request.use(
     }
     
     // 加密密钥
-    const encryptedKey = cryptoService.encryptKey(
+    const encryptedKey = await cryptoService.encryptKey(
       aesKey,
       auth.publicKey // 使用已获取的公钥
     )
@@ -85,7 +143,17 @@ service.interceptors.request.use(
     // 处理请求数据
     let requestData = ''
     if (config.data) {
-      const encrypted = cryptoService.encryptAES(config.data)
+      // 输入验证 - 对敏感数据进行清理
+      if (typeof config.data === 'object') {
+        // 清理对象中的所有字符串值
+        Object.keys(config.data).forEach(key => {
+          if (typeof config.data[key] === 'string') {
+            config.data[key] = security.sanitizeInput(config.data[key]);
+          }
+        });
+      }
+      
+      const encrypted = await cryptoService.encryptAES(config.data, aesKey)
       // 设置加密后的请求体
       requestData = encrypted.combined.toString(CryptoJS.enc.Base64)
       config.data = requestData
@@ -94,13 +162,20 @@ service.interceptors.request.use(
     // 生成签名 - 对于GET请求，将查询参数转换为字符串并加入签名
     let requestDataForSig = requestData
     if (config.method.toUpperCase() === 'GET' && config.params) {
+      // 对GET请求参数进行安全检查
+      Object.keys(config.params).forEach(key => {
+        if (typeof config.params[key] === 'string') {
+          config.params[key] = security.sanitizeInput(config.params[key]);
+        }
+      });
+      
       // 按照后端逻辑，对GET请求的参数进行排序并拼接
       const sortedParams = Object.entries(config.params).sort((a, b) => a[0].localeCompare(b[0]))
       requestDataForSig = sortedParams.map(([k, v]) => `${k}=${v}`).join('&')
       console.log('GET请求参数字符串:', requestDataForSig)
     }
     
-    const signature = cryptoService.generateSignature(
+    const signature = await cryptoService.generateSignature(
       config.url,
       config.method.toUpperCase(),
       requestDataForSig,
@@ -125,6 +200,9 @@ service.interceptors.request.use(
     config.headers['X-Nonce'] = nonce
     config.headers['X-Timestamp'] = timestamp
     config.headers['X-Client-IP'] = await getClientIP()
+    
+    // 添加CSRF令牌
+    config.headers['X-CSRF-Token'] = security.getCsrfToken()
 
     // 设置认证头
     if (token) {
@@ -167,7 +245,41 @@ service.interceptors.response.use(
         ciphertext.sigBytes -= 16
 
         // 使用请求时的AES密钥解密
-        const decryptedData = cryptoService.decryptAES(ciphertext, aesKey, iv)
+        const decryptedData = await cryptoService.decryptAES(ciphertext, aesKey, iv)
+        
+        // 安全检查 - 对响应数据进行XSS清理
+        if (typeof decryptedData === 'object' && decryptedData !== null) {
+          // 递归清理对象中的所有字符串
+          const cleanObject = (obj) => {
+            if (typeof obj !== 'object' || obj === null) return obj;
+            
+            if (Array.isArray(obj)) {
+              return obj.map(item => cleanObject(item));
+            }
+            
+            const result = {};
+            Object.keys(obj).forEach(key => {
+              if (typeof obj[key] === 'string') {
+                // 对HTML内容进行清理
+                if (key.includes('html') || key.includes('content') || /[<>]/.test(obj[key])) {
+                  result[key] = security.sanitizeHtml(obj[key]);
+                } else {
+                  // 对普通文本进行清理
+                  result[key] = security.sanitizeInput(obj[key]);
+                }
+              } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+                result[key] = cleanObject(obj[key]);
+              } else {
+                result[key] = obj[key];
+              }
+            });
+            return result;
+          };
+          
+          // 返回清理后的数据
+          return cleanObject(decryptedData);
+        }
+        
         // 返回解密后的数据，而不是再次解密
         return decryptedData
       } catch (error) {

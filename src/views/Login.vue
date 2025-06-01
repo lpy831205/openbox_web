@@ -112,6 +112,9 @@ onMounted(async () => {
   // 获取服务器公钥
   await authStore.fetchPublicKey()
   
+  // 生成设备码
+  await authStore.generateDeviceCode()
+  
   // 检查是否已经登录
   if (authStore.isAuthenticated) {
     router.push('/dashboard')

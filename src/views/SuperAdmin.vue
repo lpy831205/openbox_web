@@ -13,6 +13,9 @@
           <template #header>
             <div class="card-header">
               <span>用户管理</span>
+              <el-button type="primary" @click="handleGenerateInvite">
+                <el-icon><Plus /></el-icon> 生成邀请码
+              </el-button>
             </div>
           </template>
 
@@ -122,35 +125,86 @@
 
       <!-- 系统安全监控 -->
       <el-tab-pane label="安全监控" name="security">
+        <el-row :gutter="20" class="mb-4">
+          <el-col :span="24">
+            <el-card shadow="hover" class="security-stats-card">
+              <div class="security-stats">
+                <div class="stat-item">
+                  <div class="stat-value">{{ securityStats.totalFailedLogins }}</div>
+                  <div class="stat-label">失败登录总数</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-value">{{ securityStats.totalSuspiciousActivities }}</div>
+                  <div class="stat-label">可疑活动总数</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-value">{{ securityStats.blockedIpCount }}</div>
+                  <div class="stat-label">已封禁IP数</div>
+                </div>
+                <div class="stat-item stat-last-updated">
+                  <div class="stat-label">最后更新时间</div>
+                  <div class="stat-time">{{ formatDate(securityStats.lastUpdated) }}</div>
+                </div>
+              </div>
+              <div class="security-actions">
+                <el-button type="primary" @click="refreshSecurityData" :loading="securityLoading">
+                  <el-icon><Refresh /></el-icon> 刷新数据
+                </el-button>
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-card class="security-card">
+            <el-card class="security-card" shadow="hover">
               <template #header>
                 <div class="card-header">
                   <span>登录失败统计</span>
-                  <el-button type="primary" @click="refreshSecurityData">
-                    <el-icon><Refresh /></el-icon> 刷新
-                  </el-button>
+                  <div>
+                    <el-button size="small" @click="clearFailedLogins()">
+                      <el-icon><Delete /></el-icon> 清除全部
+                    </el-button>
+                  </div>
                 </div>
               </template>
 
-              <el-table :data="failedLogins" border stripe style="width: 100%">
-                <el-table-column prop="ip" label="IP地址" width="150" />
-                <el-table-column prop="attempts" label="失败次数" width="100" />
-                <el-table-column prop="lastAttempt" label="最后尝试" width="180">
+              <el-table :data="failedLogins" border stripe style="width: 100%" v-loading="securityLoading">
+                <el-table-column prop="ip" label="IP地址" width="130" />
+                <el-table-column prop="account" label="账号" width="100" />
+                <el-table-column prop="attempts" label="失败次数" width="80" sortable>
+                  <template #default="{ row }">
+                    <el-tag :type="row.attempts > 5 ? 'danger' : 'warning'" effect="dark">
+                      {{ row.attempts }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="reason" label="失败原因" width="120" />
+                <el-table-column prop="lastAttempt" label="最后尝试" width="160">
                   <template #default="{ row }">
                     {{ formatDate(row.lastAttempt) }}
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="120">
+                <el-table-column label="操作" width="160" fixed="right">
                   <template #default="{ row }">
-                    <el-button
-                      link
-                      type="danger"
-                      @click="addToBlacklist(row.ip, '多次登录失败')"
-                    >
-                      加入黑名单
-                    </el-button>
+                    <div class="action-buttons">
+                      <el-button
+                        link
+                        type="primary"
+                        size="small"
+                        @click="clearFailedLogins(row.ip)"
+                      >
+                        清除记录
+                      </el-button>
+                      <el-button
+                        link
+                        type="danger"
+                        size="small"
+                        @click="addToBlacklist(row.ip, '多次登录失败')"
+                      >
+                        加入黑名单
+                      </el-button>
+                    </div>
                   </template>
                 </el-table-column>
               </el-table>
@@ -158,20 +212,93 @@
           </el-col>
 
           <el-col :span="12">
-            <el-card class="security-card">
+            <el-card class="security-card" shadow="hover">
               <template #header>
-                <span>可疑活动</span>
+                <div class="card-header">
+                  <span>可疑活动</span>
+                </div>
               </template>
 
-              <el-table :data="suspiciousActivities" border stripe style="width: 100%">
-                <el-table-column prop="ip" label="IP地址" width="150" />
-                <el-table-column prop="type" label="活动类型" width="120" />
-                <el-table-column prop="timestamp" label="时间" width="180">
+              <el-table :data="suspiciousActivities" border stripe style="width: 100%" v-loading="securityLoading">
+                <el-table-column prop="ip" label="IP地址" width="130" />
+                <el-table-column prop="type" label="活动类型" width="100" />
+                <el-table-column prop="severity" label="严重性" width="80">
+                  <template #default="{ row }">
+                    <el-tag :type="getSeverityTagType(row.severity)" effect="dark">
+                      {{ row.severity || '中' }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="timestamp" label="时间" width="160">
                   <template #default="{ row }">
                     {{ formatDate(row.timestamp) }}
                   </template>
                 </el-table-column>
                 <el-table-column prop="details" label="详情" show-overflow-tooltip />
+                <el-table-column label="操作" width="160" fixed="right">
+                  <template #default="{ row }">
+                    <div class="action-buttons">
+                      <el-button
+                        link
+                        type="primary"
+                        size="small"
+                        @click="viewActivityDetails(row)"
+                      >
+                        查看详情
+                      </el-button>
+                      <el-button
+                        link
+                        type="danger"
+                        size="small"
+                        @click="addToBlacklist(row.ip, row.details)"
+                      >
+                        加入黑名单
+                      </el-button>
+                    </div>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-card>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="20" class="mt-4">
+          <el-col :span="24">
+            <el-card class="security-card" shadow="hover">
+              <template #header>
+                <div class="card-header">
+                  <span>系统日志</span>
+                  <el-radio-group v-model="logFilter" size="small">
+                    <el-radio-button label="all">全部</el-radio-button>
+                    <el-radio-button label="error">错误</el-radio-button>
+                    <el-radio-button label="warning">警告</el-radio-button>
+                    <el-radio-button label="info">信息</el-radio-button>
+                  </el-radio-group>
+                </div>
+              </template>
+
+              <el-table 
+                :data="filteredSystemLogs" 
+                border 
+                stripe 
+                style="width: 100%" 
+                v-loading="securityLoading"
+                height="300"
+              >
+                <el-table-column prop="timestamp" label="时间" width="160">
+                  <template #default="{ row }">
+                    {{ formatDate(row.timestamp) }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="level" label="级别" width="100">
+                  <template #default="{ row }">
+                    <el-tag :type="getLogLevelTagType(row.level)" effect="plain">
+                      {{ row.level }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="source" label="来源" width="120" />
+                <el-table-column prop="message" label="消息" show-overflow-tooltip />
               </el-table>
             </el-card>
           </el-col>
@@ -320,14 +447,74 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 生成邀请码对话框 -->
+    <el-dialog
+      v-model="inviteDialogVisible"
+      title="生成邀请码"
+      width="500px"
+      destroy-on-close
+    >
+      <el-form
+        ref="inviteFormRef"
+        :model="inviteFormData"
+        label-position="top"
+      >
+        <el-form-item label="设备码（可选）" prop="deviceCode">
+          <el-input
+            v-model="inviteFormData.deviceCode"
+            placeholder="请输入设备码（可选）"
+            clearable
+          />
+          <div class="form-tip">
+            如果不填写设备码，系统将生成通用邀请码
+          </div>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="inviteDialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            @click="confirmGenerateInvite"
+            :loading="loading"
+          >
+            生成
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 查看可疑活动详情对话框 -->
+    <el-dialog
+      v-model="activityDetailsDialogVisible"
+      title="可疑活动详情"
+      width="500px"
+      destroy-on-close
+    >
+      <div class="activity-details">
+        <p><strong>IP地址：</strong>{{ currentActivityDetails.ip }}</p>
+        <p><strong>活动类型：</strong>{{ currentActivityDetails.type }}</p>
+        <p><strong>严重性：</strong>{{ currentActivityDetails.severity }}</p>
+        <p><strong>时间：</strong>{{ formatDate(currentActivityDetails.timestamp) }}</p>
+        <p><strong>详情：</strong>{{ currentActivityDetails.details }}</p>
+      </div>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="activityDetailsDialogVisible = false">关闭</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Star, UserFilled, Plus, Refresh, Edit } from '@element-plus/icons-vue'
+import { Star, UserFilled, Plus, Refresh, Edit, Delete } from '@element-plus/icons-vue'
 import request from '../utils/request'
 
 const router = useRouter()
@@ -347,16 +534,39 @@ const blacklistIps = ref([])
 // 安全监控数据
 const failedLogins = ref([])
 const suspiciousActivities = ref([])
+const systemLogs = ref([])
+const securityStats = ref({
+  totalFailedLogins: 0,
+  totalSuspiciousActivities: 0,
+  blockedIpCount: 0,
+  lastUpdated: ''
+})
+const securityLoading = ref(false)
+const logFilter = ref('all')
+
+// 过滤后的系统日志
+const filteredSystemLogs = computed(() => {
+  if (logFilter.value === 'all') {
+    return systemLogs.value
+  }
+  return systemLogs.value.filter(log => log.level === logFilter.value)
+})
 
 // 对话框控制
 const activateDialogVisible = ref(false)
 const blacklistDialogVisible = ref(false)
 const customRoleDialogVisible = ref(false)
+const activityDetailsDialogVisible = ref(false)
+const inviteDialogVisible = ref(false)
 
 // 表单引用
 const activateFormRef = ref(null)
 const blacklistFormRef = ref(null)
 const customRoleFormRef = ref(null)
+const inviteFormRef = ref(null)
+
+// 当前查看的可疑活动详情
+const currentActivityDetails = ref(null)
 
 // 激活管理员表单
 const activateForm = ref({
@@ -410,6 +620,11 @@ const customRoleRules = {
   ]
 }
 
+// 邀请码相关状态
+const inviteFormData = ref({
+  deviceCode: ''
+})
+
 // 获取管理员用户列表
 const fetchAdminUsers = async () => {
   try {
@@ -438,17 +653,106 @@ const fetchBlacklistIps = async () => {
 // 获取安全监控数据
 const fetchSecurityData = async () => {
   try {
-    // 这里可以添加获取失败登录和可疑活动的API调用
-    // 暂时使用模拟数据
-    failedLogins.value = [
-      { ip: '192.168.1.100', attempts: 5, lastAttempt: new Date().toISOString() },
-      { ip: '10.0.0.50', attempts: 3, lastAttempt: new Date().toISOString() }
-    ]
-    suspiciousActivities.value = [
-      { ip: '192.168.1.200', type: '异常请求', timestamp: new Date().toISOString(), details: '频繁访问敏感接口' }
-    ]
+    securityLoading.value = true
+    
+    // 获取登录失败记录
+    const failedLoginsResponse = await request.get('/api/superadmin/security/failed-logins')
+    failedLogins.value = failedLoginsResponse.data || []
+    
+    // 获取可疑活动
+    const suspiciousActivitiesResponse = await request.get('/api/superadmin/security/suspicious-activities')
+    suspiciousActivities.value = suspiciousActivitiesResponse.data || []
+    
+    // 获取系统日志
+    const systemLogsResponse = await request.get('/api/superadmin/security/system-logs', {
+      params: { limit: 100 }
+    })
+    systemLogs.value = systemLogsResponse.data || []
+    
+    // 获取安全统计数据
+    const securityStatsResponse = await request.get('/api/superadmin/security/stats')
+    securityStats.value = securityStatsResponse.data || {
+      totalFailedLogins: 0,
+      totalSuspiciousActivities: 0,
+      blockedIpCount: 0,
+      lastUpdated: new Date().toISOString()
+    }
+    
+    ElMessage.success('安全监控数据已更新')
   } catch (error) {
     ElMessage.error('获取安全监控数据失败：' + error.message)
+    // 如果API尚未实现，使用模拟数据以便前端开发测试
+    failedLogins.value = [
+      { ip: '192.168.1.100', attempts: 5, lastAttempt: new Date().toISOString(), account: 'user1', reason: '多次登录失败' },
+      { ip: '10.0.0.50', attempts: 3, lastAttempt: new Date().toISOString(), account: 'admin2', reason: '多次登录失败' },
+      { ip: '172.16.0.10', attempts: 8, lastAttempt: new Date().toISOString(), account: 'test', reason: '多次登录失败' }
+    ]
+    suspiciousActivities.value = [
+      { ip: '192.168.1.200', type: '异常请求', timestamp: new Date().toISOString(), details: '频繁访问敏感接口', severity: 'high' },
+      { ip: '10.0.0.25', type: '暴力破解', timestamp: new Date().toISOString(), details: '尝试破解管理员账号', severity: 'critical' },
+      { ip: '172.16.0.5', type: '异常登录', timestamp: new Date().toISOString(), details: '非常规时间登录系统', severity: 'medium' }
+    ]
+    systemLogs.value = [
+      { timestamp: new Date().toISOString(), level: 'warning', message: '用户admin多次尝试访问未授权资源', source: 'auth-service' },
+      { timestamp: new Date(Date.now() - 3600000).toISOString(), level: 'error', message: '数据库连接异常', source: 'db-service' },
+      { timestamp: new Date(Date.now() - 7200000).toISOString(), level: 'info', message: '系统定时备份完成', source: 'backup-service' }
+    ]
+    securityStats.value = {
+      totalFailedLogins: 56,
+      totalSuspiciousActivities: 12,
+      blockedIpCount: 5,
+      lastUpdated: new Date().toISOString()
+    }
+  } finally {
+    securityLoading.value = false
+  }
+}
+
+// 清除失败登录记录
+const clearFailedLogins = async (ip) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要清除${ip ? `IP ${ip} 的` : '所有'}失败登录记录吗？`,
+      '确认操作',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    await request.post('/api/superadmin/security/clear-failed-logins', {
+      ip: ip || null
+    })
+    
+    ElMessage.success(`${ip ? `IP ${ip} 的` : '所有'}失败登录记录已清除`)
+    await fetchSecurityData()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('清除失败登录记录失败：' + error.message)
+    }
+  }
+}
+
+// 获取安全事件严重性标签类型
+const getSeverityTagType = (severity) => {
+  switch (severity) {
+    case 'critical': return 'danger'
+    case 'high': return 'warning'
+    case 'medium': return 'info'
+    case 'low': return 'success'
+    default: return 'info'
+  }
+}
+
+// 获取日志级别标签类型
+const getLogLevelTagType = (level) => {
+  switch (level) {
+    case 'error': return 'danger'
+    case 'warning': return 'warning'
+    case 'info': return 'info'
+    case 'debug': return 'success'
+    default: return 'info'
   }
 }
 
@@ -575,34 +879,6 @@ const removeFromBlacklist = async (ip) => {
   }
 }
 
-// 添加IP到黑名单（从安全监控）
-const addToBlacklist = async (ip, reason) => {
-  try {
-    await ElMessageBox.confirm(
-      `确定要将IP ${ip} 添加到黑名单吗？\n原因：${reason}`,
-      '确认操作',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-
-    await request.post('/api/superadmin/blacklist-ip', {
-      ip: ip,
-      action: 'add'
-    })
-    
-    ElMessage.success('IP已添加到黑名单')
-    await fetchBlacklistIps()
-    await fetchSecurityData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('添加IP到黑名单失败：' + error.message)
-    }
-  }
-}
-
 // 刷新安全数据
 const refreshSecurityData = () => {
   fetchSecurityData()
@@ -640,14 +916,39 @@ const formatDate = (date) => {
   return new Date(date).toLocaleString()
 }
 
-// 显示自定义角色对话框
-const showCustomRoleDialog = () => {
-  customRoleForm.value = {
-    account: '',
-    role: '',
-    confirm: false
+// 生成邀请码
+const handleGenerateInvite = () => {
+  // 确保 inviteFormData 不是 null，以防意外情况
+  if (!inviteFormData.value) {
+    inviteFormData.value = { deviceCode: '' };
+  } else {
+    inviteFormData.value.deviceCode = ''; // 清空设备码
   }
-  customRoleDialogVisible.value = true
+  inviteDialogVisible.value = true;
+}
+
+const confirmGenerateInvite = async () => {
+  try {
+    loading.value = true
+    const response = await request.post('/api/admin/generate-invite', {
+      device_code: inviteFormData.value.deviceCode
+    })
+    ElMessage.success('邀请码生成成功')
+    ElMessageBox.alert(response.data.invite_code, '邀请码', {
+      confirmButtonText: '复制',
+      callback: (action) => {
+        if (action === 'confirm') {
+          navigator.clipboard.writeText(response.data.invite_code)
+          ElMessage.success('已复制到剪贴板')
+        }
+      }
+    })
+    inviteDialogVisible.value = false
+  } catch (error) {
+    ElMessage.error('生成邀请码失败：' + error.message)
+  } finally {
+    loading.value = false
+  }
 }
 
 // 确认设置自定义角色
@@ -673,6 +974,12 @@ const confirmCustomRole = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 查看可疑活动详情
+const viewActivityDetails = (activity) => {
+  currentActivityDetails.value = activity
+  activityDetailsDialogVisible.value = true
 }
 
 // 初始化数据
@@ -740,12 +1047,25 @@ onMounted(async () => {
   margin-bottom: 25px;
 }
 
+:deep(.el-tabs__nav-wrap) {
+  /* 确保导航包装元素不会裁剪内容 */
+  overflow: visible !important;
+}
+
+:deep(.el-tabs__nav) {
+  /* 确保导航元素不会裁剪内容 */
+  overflow: visible !important;
+}
+
 :deep(.el-tabs__item) {
   font-size: 16px;
   font-weight: 600;
   padding: 0 25px;
   border-radius: 10px 10px 0 0;
   transition: all 0.3s ease;
+  position: relative;
+  overflow: visible !important; /* 确保内容不被裁剪 */
+  margin: 0 2px; /* 添加边距，避免相邻标签项背景重叠 */
 }
 
 :deep(.el-tabs__item:hover) {
@@ -756,17 +1076,13 @@ onMounted(async () => {
   color: #ffffff; /* 白色文字以适应渐变背景 */
   font-weight: 700;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); /* 图片中的渐变背景 */
-  border-radius: 8px; /* 圆角 */
+  border-radius: 10px 10px 0 0; /* 保持与上方定义一致的圆角 */
+  transform: translateY(0); /* 确保不会有偏移 */
+}
 
-  /* 添加 flex 布局以垂直居中文本 */
-  display: inline-flex;
-  align-items: center;   /* 垂直居中 */
-  justify-content: center; /* 水平居中 */
-  /* 如果el-tabs__item有固定的height，这通常足够了 */
-  /* 如果需要，可以取消注释并调整padding或line-height */
-  /* padding-top: 8px; */
-  /* padding-bottom: 8px; */
-  /* line-height: normal; */
+:deep(.el-tabs__active-bar) {
+  background: transparent; /* 移除底部激活条 */
+  height: 0;
 }
 
 .superadmin-tabs :deep(.el-tabs__content) {
@@ -893,5 +1209,128 @@ onMounted(async () => {
   width: 100%;
   margin: 0;
   justify-content: center;
+}
+
+.security-stats-card {
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e7eb 100%);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  position: relative;
+  z-index: 1;
+  border: none;
+}
+
+.security-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 15px;
+  min-width: 120px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.stat-item:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #303133;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: #606266;
+  font-weight: 500;
+}
+
+.stat-last-updated {
+  text-align: right;
+  background: transparent;
+  box-shadow: none;
+}
+
+.stat-time {
+  font-size: 14px;
+  color: #909399;
+  margin-top: 5px;
+}
+
+.security-actions {
+  text-align: right;
+}
+
+.security-card {
+  margin-bottom: 20px;
+  border-radius: 12px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+}
+
+.security-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.activity-details {
+  padding: 20px;
+  background: #f9fafc;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.activity-details p {
+  margin: 10px 0;
+  line-height: 1.6;
+}
+
+.activity-details strong {
+  color: #303133;
+  margin-right: 8px;
+}
+
+.mt-4 {
+  margin-top: 16px;
+}
+
+:deep(.el-table) {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+:deep(.el-table th) {
+  background: #f5f7fa;
+  color: #606266;
+  font-weight: 600;
+}
+
+:deep(.el-radio-button__inner) {
+  border-radius: 4px;
+  padding: 8px 15px;
+  font-weight: 500;
+}
+
+:deep(.el-radio-button:first-child .el-radio-button__inner) {
+  border-left-color: #dcdfe6;
+  border-radius: 4px 0 0 4px;
+}
+
+:deep(.el-radio-button:last-child .el-radio-button__inner) {
+  border-radius: 0 4px 4px 0;
 }
 </style>

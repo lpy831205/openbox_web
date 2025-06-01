@@ -27,7 +27,7 @@ export class CryptoService {
 
         // 确保数据是字符串格式
         const dataString = typeof data === 'string' ? data : JSON.stringify(data)
-        
+
         const encrypted = CryptoJS.AES.encrypt(
             dataString,
             key,

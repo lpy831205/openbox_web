@@ -87,8 +87,8 @@ onMounted(async () => {
         router.push('/login')
       }
     }
-    // 生成设备码
-    authStore.generateDeviceCode()
+    // 生成设备码 - 使用await确保异步操作完成
+    await authStore.generateDeviceCode()
     isInitialized.value = true
   } catch (error) {
     console.error('应用初始化失败:', error)

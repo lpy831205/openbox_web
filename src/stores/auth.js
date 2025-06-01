@@ -5,6 +5,7 @@ import { SHA3 } from 'crypto-js'
 import { JSEncrypt } from 'jsencrypt'
 import { CryptoService } from '../utils/crypto';
 import service from '../utils/request';
+import deviceFingerprintService from '../utils/deviceFingerprint';
 
 export const useAuthStore = defineStore('auth', () => {
   const router = useRouter()
@@ -38,11 +39,17 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // 生成设备码
-  const generateDeviceCode = () => {
+  // 生成设备码 - 使用新的设备指纹服务
+  const generateDeviceCode = async () => {
     if (!deviceCode.value) {
-      // 增加更多设备唯一性标识
-      const browserInfo = navigator.userAgent + 
+      try {
+        // 使用新的设备指纹服务生成设备码
+        deviceCode.value = await deviceFingerprintService.generateFingerprint();
+        secureStore('deviceCode', deviceCode.value);
+      } catch (error) {
+        console.error('设备码生成失败，使用降级方案:', error);
+        // 降级方案：使用原来的方法
+        const browserInfo = navigator.userAgent + 
                           navigator.language + 
                           screen.width + 
                           screen.height + 
@@ -51,10 +58,11 @@ export const useAuthStore = defineStore('auth', () => {
                           navigator.platform +
                           new Date().getTimezoneOffset();
       
-      deviceCode.value = SHA3(browserInfo, { outputLength: 512 }).toString().toLowerCase()
-      secureStore('deviceCode', deviceCode.value)
+        deviceCode.value = SHA3(browserInfo, { outputLength: 512 }).toString().toLowerCase();
+        secureStore('deviceCode', deviceCode.value);
+      }
     }
-    return deviceCode.value
+    return deviceCode.value;
   }
 
   // 获取服务器公钥
@@ -90,7 +98,8 @@ export const useAuthStore = defineStore('auth', () => {
         encryptor.setPublicKey(publicKey.value)
       }
       
-      const device = generateDeviceCode()
+      // 使用异步方法获取设备码
+      const device = await generateDeviceCode()
       const response = await service.post('/api/verify_invite', {
         device_code: device,
         invite_code: inviteCode
@@ -104,7 +113,8 @@ export const useAuthStore = defineStore('auth', () => {
   // 用户注册
   const register = async ({ account, password, inviteCode }) => {
     try {
-      const device = generateDeviceCode()
+      // 使用异步方法获取设备码
+      const device = await generateDeviceCode()
       const response = await service.post('/api/auth/register', {
         account,
         password,
@@ -120,7 +130,8 @@ export const useAuthStore = defineStore('auth', () => {
   // 用户登录
   const login = async ({ account, password }) => {
     try {
-      const device = generateDeviceCode()
+      // 使用异步方法获取设备码
+      const device = await generateDeviceCode()
       const response = await service.post('/api/auth/login', {
         account,
         password,

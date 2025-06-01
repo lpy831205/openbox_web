@@ -54,6 +54,9 @@
               >
                 {{ record.status === 'success' ? '登录成功' : '登录失败' }}
               </el-tag>
+              <span v-if="record.status === 'failed' && record.reason" class="ml-2 failure-reason">
+                原因: {{ record.reason }}
+              </span>
             </el-timeline-item>
           </el-timeline>
         </el-card>
@@ -266,5 +269,40 @@ onMounted(() => {
   padding: 20px;
   max-height: 400px;
   overflow-y: auto;
+}
+
+.profile-card {
+  margin-bottom: 20px;
+}
+
+.avatar-uploader {
+  text-align: center;
+}
+
+.avatar-uploader .el-upload {
+  border: 1px dashed var(--el-border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: var(--el-transition-duration-fast);
+}
+
+.avatar-uploader .el-upload:hover {
+  border-color: var(--el-color-primary);
+}
+
+.el-icon.avatar-uploader-icon {
+  font-size: 28px;
+  color: #8c939d;
+  width: 100px;
+  height: 100px;
+  text-align: center;
+}
+
+.failure-reason {
+  color: #f56c6c;
+  font-size: 0.9em;
+  font-style: italic;
 }
 </style>

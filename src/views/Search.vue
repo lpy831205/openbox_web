@@ -390,11 +390,7 @@ const handleExport = async () => {
 // 敏感信息脱敏
 const maskSensitiveInfo = (info) => {
   if (!info) return '未提供'
-  if (info.length <= 4) return '*'.repeat(info.length)
-  if (info.length === 18) { // 身份证号
-    return info.slice(0, 6) + '*'.repeat(8) + info.slice(14)
-  }
-  return info.slice(0, 3) + '*'.repeat(info.length - 3)
+  return info // 直接返回原始信息，不再进行脱敏处理
 }
 </script>
 

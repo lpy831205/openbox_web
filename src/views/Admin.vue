@@ -7,9 +7,6 @@
           <template #header>
             <div class="card-header">
               <span>用户列表</span>
-              <el-button type="primary" @click="handleGenerateInvite">
-                <el-icon><Plus /></el-icon> 生成邀请码
-              </el-button>
             </div>
           </template>
 
@@ -194,45 +191,82 @@
           </el-col>
         </el-row>
       </el-tab-pane>
+
+      <!-- 通知管理 -->
+      <el-tab-pane label="通知管理" name="notifications">
+        <el-card>
+          <template #header>
+            <div class="card-header">
+              <span>通知列表</span>
+              <el-button type="primary" @click="handleCreateNotification">
+                <el-icon><Plus /></el-icon> 发送通知
+              </el-button>
+            </div>
+          </template>
+
+          <el-table :data="notifications" border stripe style="width: 100%">
+            <el-table-column prop="title" label="标题" show-overflow-tooltip />
+            <el-table-column prop="create_time" label="发送时间" width="180">
+              <template #default="{ row }">
+                {{ formatDate(row.create_time) }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="recipients" label="接收人" width="150">
+              <template #default="{ row }">
+                <el-tag v-if="row.recipients === 'all'" type="success">所有用户</el-tag>
+                <el-tag v-else type="info">指定用户({{ row.recipients.length }}人)</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="已读情况" width="150">
+              <template #default="{ row }">
+                <el-progress 
+                  :percentage="Math.round((row.read_count / row.total_recipients) * 100)" 
+                  :format="percentageFormat"
+                  :status="getReadStatus(row.read_count, row.total_recipients)"
+                />
+                <div class="read-count">{{ row.read_count }}/{{ row.total_recipients }}</div>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="200" fixed="right">
+              <template #default="{ row }">
+                <div class="action-buttons">
+                  <el-button
+                    size="small"
+                    type="primary"
+                    @click="handleViewNotification(row)"
+                    class="action-btn"
+                  >
+                    <el-icon><View /></el-icon>
+                    查看
+                  </el-button>
+                  <el-button
+                    size="small"
+                    type="danger"
+                    @click="handleDeleteNotification(row)"
+                    class="action-btn"
+                  >
+                    <el-icon><Delete /></el-icon>
+                    删除
+                  </el-button>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <div class="pagination">
+            <el-pagination
+              v-model:current-page="notificationCurrentPage"
+              v-model:page-size="notificationPageSize"
+              :page-sizes="[10, 20, 50, 100]"
+              :total="notificationTotal"
+              layout="total, sizes, prev, pager, next, jumper"
+              @size-change="handleNotificationSizeChange"
+              @current-change="handleNotificationCurrentChange"
+            />
+          </div>
+        </el-card>
+      </el-tab-pane>
     </el-tabs>
-
-    <!-- 生成邀请码对话框 -->
-    <el-dialog
-      v-model="inviteDialogVisible"
-      title="生成邀请码"
-      width="400px"
-      destroy-on-close
-    >
-      <el-form
-        v-if="inviteFormData" 
-        ref="inviteFormRef"
-        :model="inviteFormData"
-        label-position="top"
-      >
-        <el-form-item label="设备码">
-          <el-input
-            v-model="inviteFormData.deviceCode"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入设备码"
-            clearable 
-          />
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="inviteDialogVisible = false">取消</el-button>
-          <el-button
-            type="primary"
-            @click="confirmGenerateInvite"
-            :loading="loading"
-          >
-            生成
-          </el-button>
-        </span>
-      </template>
-    </el-dialog>
 
     <!-- 重置密码对话框 -->
     <el-dialog
@@ -270,12 +304,128 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 发送通知对话框 -->
+    <el-dialog
+      v-model="notificationDialogVisible"
+      title="发送通知"
+      width="600px"
+      destroy-on-close
+    >
+      <el-form
+        ref="notificationFormRef"
+        :model="notificationForm"
+        :rules="notificationRules"
+        label-position="top"
+      >
+        <el-form-item label="通知标题" prop="title">
+          <el-input
+            v-model="notificationForm.title"
+            placeholder="请输入通知标题"
+            maxlength="50"
+            show-word-limit
+          />
+        </el-form-item>
+        
+        <el-form-item label="接收人" prop="recipientType">
+          <el-radio-group v-model="notificationForm.recipientType">
+            <el-radio label="all">所有用户</el-radio>
+            <el-radio label="selected">指定用户</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        
+        <el-form-item 
+          v-if="notificationForm.recipientType === 'selected'" 
+          label="选择用户" 
+          prop="selectedUsers"
+        >
+          <el-select
+            v-model="notificationForm.selectedUsers"
+            multiple
+            filterable
+            placeholder="请选择用户"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="user in users"
+              :key="user.account"
+              :label="user.account"
+              :value="user.account"
+            />
+          </el-select>
+        </el-form-item>
+        
+        <el-form-item label="通知内容" prop="content">
+          <el-input
+            v-model="notificationForm.content"
+            type="textarea"
+            :rows="6"
+            placeholder="请输入通知内容"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="notificationDialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            @click="submitNotification"
+            :loading="notificationLoading"
+          >
+            发送
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+    
+    <!-- 查看通知对话框 -->
+    <el-dialog
+      v-model="viewNotificationDialogVisible"
+      :title="currentNotification?.title || '通知详情'"
+      width="600px"
+    >
+      <template v-if="currentNotification">
+        <div class="notification-info">
+          <p class="notification-meta">
+            <span class="notification-sender">发送人: {{ currentNotification.sender }}</span>
+            <span class="notification-time">{{ formatDate(currentNotification.create_time) }}</span>
+          </p>
+          <p class="notification-recipients">
+            接收人: 
+            <el-tag v-if="currentNotification.recipients === 'all'" type="success">所有用户</el-tag>
+            <template v-else>
+              <el-tag 
+                v-for="(recipient, index) in currentNotification.recipients" 
+                :key="index" 
+                class="recipient-tag"
+              >
+                {{ recipient }}
+              </el-tag>
+            </template>
+          </p>
+          <div class="notification-content">
+            {{ currentNotification.content }}
+          </div>
+          <div class="notification-read-status">
+            <p>已读状态: {{ currentNotification.read_count }}/{{ currentNotification.total_recipients }}</p>
+            <el-progress 
+              :percentage="Math.round((currentNotification.read_count / currentNotification.total_recipients) * 100)"
+              :format="percentageFormat"
+              :status="getReadStatus(currentNotification.read_count, currentNotification.total_recipients)"
+            />
+          </div>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, nextTick, watch } from 'vue'
-import { Plus, Download, Refresh, Key, Delete } from '@element-plus/icons-vue'
+import { Plus, Download, Refresh, Key, Delete, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
 
@@ -291,6 +441,8 @@ const handleTabChange = (tab) => {
     fetchQueryLogs()
   } else if (tab === 'monitor') {
     refreshSystemStatus()
+  } else if (tab === 'notifications') {
+    getNotifications()
   }
 }
 
@@ -352,18 +504,13 @@ const onlineUsers = ref([])
 
 // 对话框控制
 const loading = ref(false)
-const inviteDialogVisible = ref(false)
 const resetPasswordDialogVisible = ref(false)
 const resetPasswordFormEl = ref(null) // 用于模板引用 ElForm 实例
 
 // 表单数据
-const inviteFormData = ref({
-  deviceCode: '' // 确保初始值为空字符串
-})
-
 const resetPasswordFormData = ref({
   account: '',
-  newPassword: '' // 确保初始值为空字符串
+  newPassword: ''
 })
 
 const resetPasswordRules = {
@@ -377,6 +524,64 @@ const resetPasswordRules = {
     }
   ]
 }
+
+// 通知相关
+const notifications = ref([]);
+const notificationCurrentPage = ref(1);
+const notificationPageSize = ref(10);
+const notificationTotal = ref(0);
+const notificationDialogVisible = ref(false);
+const notificationLoading = ref(false);
+const viewNotificationDialogVisible = ref(false);
+const currentNotification = ref(null);
+
+const notificationForm = ref({
+  title: '',
+  content: '',
+  recipientType: 'all',
+  selectedUsers: []
+});
+
+const notificationRules = {
+  title: [
+    { required: true, message: '请输入通知标题', trigger: 'blur' },
+    { min: 2, max: 50, message: '标题长度应在2到50个字符之间', trigger: 'blur' }
+  ],
+  content: [
+    { required: true, message: '请输入通知内容', trigger: 'blur' },
+    { min: 5, max: 500, message: '内容长度应在5到500个字符之间', trigger: 'blur' }
+  ],
+  recipientType: [
+    { required: true, message: '请选择接收人类型', trigger: 'change' }
+  ],
+  selectedUsers: [
+    { 
+      required: true, 
+      message: '请选择至少一个用户', 
+      trigger: 'change',
+      validator: (rule, value, callback) => {
+        if (notificationForm.value.recipientType === 'selected' && (!value || value.length === 0)) {
+          callback(new Error('请选择至少一个用户'));
+        } else {
+          callback();
+        }
+      }
+    }
+  ]
+};
+
+const notificationFormRef = ref(null);
+
+const percentageFormat = (percentage) => {
+  return percentage === 100 ? '完成' : `${percentage}%`;
+};
+
+const getReadStatus = (readCount, totalRecipients) => {
+  const percentage = (readCount / totalRecipients) * 100;
+  if (percentage === 100) return 'success';
+  if (percentage > 50) return 'warning';
+  return '';
+};
 
 // 获取用户列表
 const fetchUsers = async () => {
@@ -471,41 +676,6 @@ const fetchOnlineUsers = async () => {
     onlineUsers.value = response.data
   } catch (error) {
     ElMessage.error('获取在线用户失败：' + error.message)
-  }
-}
-
-// 生成邀请码
-const handleGenerateInvite = () => {
-  // 确保 inviteFormData 不是 null，以防意外情况
-  if (!inviteFormData.value) {
-    inviteFormData.value = { deviceCode: '' };
-  } else {
-    inviteFormData.value.deviceCode = ''; // 清空设备码
-  }
-  inviteDialogVisible.value = true;
-}
-
-const confirmGenerateInvite = async () => {
-  try {
-    loading.value = true
-    const response = await request.post('/api/admin/generate-invite', {
-      device_code: inviteFormData.value.deviceCode
-    })
-    ElMessage.success('邀请码生成成功')
-    ElMessageBox.alert(response.data.invite_code, '邀请码', {
-      confirmButtonText: '复制',
-      callback: (action) => {
-        if (action === 'confirm') {
-          navigator.clipboard.writeText(response.data.invite_code)
-          ElMessage.success('已复制到剪贴板')
-        }
-      }
-    })
-    inviteDialogVisible.value = false
-  } catch (error) {
-    ElMessage.error('生成邀请码失败：' + error.message)
-  } finally {
-    loading.value = false
   }
 }
 
@@ -729,6 +899,141 @@ const handleCurrentChange = (val) => {
   fetchQueryLogs()
 }
 
+// 获取通知列表
+const getNotifications = async () => {
+  try {
+    const { page, page_size } = {
+      page: notificationCurrentPage.value,
+      page_size: notificationPageSize.value
+    };
+    
+    const res = await request.get('/api/admin/notifications', { 
+      params: { 
+        page, 
+        page_size 
+      } 
+    });
+    if (res.success) {
+      notifications.value = res.notifications || [];
+      notificationTotal.value = res.total || 0;
+    } else {
+      console.error('获取通知列表失败:', res.message);
+      ElMessage.error(res.message || '获取通知列表失败');
+    }
+  } catch (error) {
+    console.error('获取通知列表失败:', error);
+    ElMessage.error('网络错误，请稍后重试');
+  }
+};
+
+// 发送通知
+const handleCreateNotification = () => {
+  notificationForm.value.title = '';
+  notificationForm.value.content = '';
+  notificationForm.value.recipientType = 'all';
+  notificationForm.value.selectedUsers = [];
+  notificationDialogVisible.value = true;
+};
+
+// 提交发送通知
+const submitNotification = async () => {
+  if (!notificationFormRef.value) return;
+  
+  await notificationFormRef.value.validate(async (valid) => {
+    if (!valid) return;
+    
+    notificationLoading.value = true;
+    try {
+      const recipients = notificationForm.value.recipientType === 'all' 
+        ? 'all' 
+        : notificationForm.value.selectedUsers;
+        
+      if (notificationForm.value.recipientType === 'selected' && (!recipients || recipients.length === 0)) {
+        ElMessage.warning('请至少选择一个接收用户');
+        notificationLoading.value = false;
+        return;
+      }
+        
+      const res = await request.post('/api/admin/notifications/send', {
+        title: notificationForm.value.title,
+        content: notificationForm.value.content,
+        recipients
+      });
+      
+      if (res.success) {
+        ElMessage.success('通知发送成功');
+        notificationDialogVisible.value = false;
+        getNotifications();
+      } else {
+        ElMessage.error(res.message || '发送通知失败');
+      }
+    } catch (error) {
+      console.error('发送通知失败:', error);
+      ElMessage.error('网络错误，请稍后重试');
+    } finally {
+      notificationLoading.value = false;
+    }
+  });
+};
+
+// 查看通知详情
+const handleViewNotification = (row) => {
+  if (!row) {
+    console.error('通知数据不完整');
+    return;
+  }
+  currentNotification.value = row;
+  viewNotificationDialogVisible.value = true;
+};
+
+// 删除通知
+const handleDeleteNotification = (row) => {
+  if (!row || !row.id) {
+    console.error('通知ID不存在');
+    ElMessage.error('通知数据不完整，无法删除');
+    return;
+  }
+  
+  ElMessageBox.confirm(
+    '确定要删除该通知吗？此操作不可恢复。',
+    '删除确认',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }
+  ).then(async () => {
+    try {
+      const res = await request.post('/api/admin/notifications/delete', {
+        notification_id: row.id
+      });
+      
+      if (res.success) {
+        ElMessage.success('通知已删除');
+        getNotifications();
+      } else {
+        ElMessage.error(res.message || '删除通知失败');
+      }
+    } catch (error) {
+      console.error('删除通知失败:', error);
+      ElMessage.error('网络错误，请稍后重试');
+    }
+  }).catch(() => {
+    // 用户取消删除
+  });
+};
+
+// 分页处理
+const handleNotificationSizeChange = (size) => {
+  notificationPageSize.value = size;
+  getNotifications();
+};
+
+const handleNotificationCurrentChange = (page) => {
+  notificationCurrentPage.value = page;
+  getNotifications();
+};
+
 // 工具函数
 const getRoleTagType = (role) => {
   switch (role) {
@@ -809,6 +1114,8 @@ onMounted(async () => {
   } else if (activeTab.value === 'monitor') {
     await fetchSystemStatus()
     await fetchOnlineUsers()
+  } else if (activeTab.value === 'notifications') {
+    await getNotifications()
   }
 })
 
@@ -884,7 +1191,9 @@ watch(() => activeTab.value, (newTab) => {
 :deep(.el-tabs__item.is-active) {
   color: #fff !important;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 10px 10px 0 0;
   box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+  transform: translateY(0);
 }
 
 :deep(.el-tabs__active-bar) {
@@ -1100,5 +1409,48 @@ watch(() => activeTab.value, (newTab) => {
   background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+}
+
+/* 通知样式 */
+.notification-info {
+  padding: 10px 0;
+}
+
+.notification-meta {
+  display: flex;
+  justify-content: space-between;
+  color: #606266;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.notification-recipients {
+  margin-bottom: 15px;
+}
+
+.recipient-tag {
+  margin-right: 5px;
+  margin-bottom: 5px;
+}
+
+.notification-content {
+  background-color: #f5f7fa;
+  border-radius: 4px;
+  padding: 15px;
+  margin-bottom: 15px;
+  min-height: 100px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.notification-read-status {
+  margin-top: 20px;
+}
+
+.read-count {
+  font-size: 12px;
+  color: #909399;
+  text-align: center;
+  margin-top: 5px;
 }
 </style>
